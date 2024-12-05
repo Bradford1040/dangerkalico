@@ -33,7 +33,7 @@ jobs:
         target_sync_branch: bleeding-extended-corexy-v1
         # REQUIRED 'target_repo_token' exactly like this!
         target_repo_token: ${{ secrets.GITHUB_TOKEN }}
-        upstream_sync_branch: main
+        upstream_sync_branch: bleeding-edge-v2
         upstream_sync_repo: KalicoCrew/kalico
         upstream_repo_access_token: ${{ secrets.UPSTREAM_REPO_SECRET }}
 
