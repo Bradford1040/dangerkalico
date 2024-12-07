@@ -1618,7 +1618,7 @@ specified and it is higher than the extruder's current temperature,
 then the extruder will be heated to at least `MIN_TEMP` before
 unloading/loading; the current extruder temperature target may be used
 instead if it is higher than `MIN_TEMP`, and if not then
-[tr_last_heater_target](https://github.com/Annex-Engineering/TradRack/blob/main/docs/klipper/Save_Variables.md)
+[tr_last_heater_target](https://github.com/Annex-Engineering/TradRack/blob/main/docs/kalico/Save_Variables.md)
 may be used. If `EXACT_TEMP` is specified, the extruder will be heated
 to `EXACT_TEMP` before unloading/loading, regardless of any other
 temperature setting. If any of the optional length parameters are
@@ -1643,7 +1643,7 @@ the extruder's current temperature, then the extruder will be heated
 to at least `MIN_TEMP` before unloading; the current extruder
 temperature target may be used instead if it is higher than
 `MIN_TEMP`, and if not then
-[tr_last_heater_target](https://github.com/Annex-Engineering/TradRack/blob/main/docs/klipper/Save_Variables.md)
+[tr_last_heater_target](https://github.com/Annex-Engineering/TradRack/blob/main/docs/kalico/Save_Variables.md)
 may be used. If `EXACT_TEMP` is specified, the extruder will be heated
 to `EXACT_TEMP` before unloading/loading, regardless of any other
 temperature setting.
