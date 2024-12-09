@@ -2,7 +2,7 @@ name: 'Upstream Sync'
 
 on:
   schedule:
-    - cron:  '0 0 * * *'
+    - cron:  "0 13 * * 1"
     # scheduled at 07:00 every Monday and Thursday
 
   workflow_dispatch:  # click the button on Github repo!
@@ -34,7 +34,7 @@ jobs:
         # REQUIRED 'target_repo_token' exactly like this!
         target_repo_token: ${{ secrets.GITHUB_TOKEN }}
         upstream_sync_branch: bleeding-edge-v2
-        upstream_sync_repo: KalicoCrew/kalico
+        upstream_sync_repo: https://github.com/KalicoCrew/kalico
         upstream_repo_access_token: ${{ secrets.UPSTREAM_REPO_SECRET }}
 
         # Set test_mode true to run tests instead of the true action!!
