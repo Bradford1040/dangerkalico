@@ -1,4 +1,5 @@
 # development
+upstream-sync.yaml
 out
 *.so
 *.pyc
