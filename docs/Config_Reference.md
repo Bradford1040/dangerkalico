@@ -3,6 +3,8 @@
 This document is a reference for options available in the Kalico
 config file.
 
+Sections and options are marked with an ⚠️ to denote configurations that are changed from stock Klipper.
+
 The descriptions in this document are formatted so that it is possible
 to cut-and-paste them into a printer config file. See the
 [installation document](Installation.md) for information on setting up
@@ -135,6 +137,9 @@ A collection of Kalico-specific system options
 #   If the bed mesh should be logged at startup
 #   (helpful for keeping the log clean during development)
 #   The default is True.
+#log_velocity_limit_changes: True
+#   If changes to velocity limits should be logged. If False, velocity limits will only
+#   be logged at rollover. Some slicers emit very frequent SET_VELOCITY_LIMIT commands
 #log_shutdown_info: True
 #   If we should log detailed crash info when an exception occurs
 #   Most of it is overly-verbose and fluff and we still get a stack trace
@@ -1855,7 +1860,7 @@ file for a Marlin compatible M808 G-Code macro.
 [sdcard_loop]
 ```
 
-### ⚠ [force_move]
+### ⚠️ [force_move]
 
 This module is enabled by default in Kalico!
 
