@@ -1926,7 +1926,12 @@ allowing per-filament settings and runtime tuning.
 #   The vertical height by which the nozzle is lifted from the print to
 #   prevent collisions with the print during travel moves when retracted.
 #   The minimum value is 0 mm, the default value is 0 mm, which disables
-#   zhop moves.
+#   zhop moves. The value will be reduced if the zhop move reaches
+#   maximum z.
+#clear_zhop_on_z_moves: False
+#   If True, when a change in Z is sent while toolhead is retracted,
+#   z_hop is cancelled until next retraction. Otherwise,
+#   `z_hop_height` is applied as an offset to all movements.
 ```
 
 ### [gcode_arcs]
@@ -2068,8 +2073,9 @@ Support for LIS2DW accelerometers.
 
 ```
 [lis2dw]
-cs_pin:
-#   The SPI enable pin for the sensor. This parameter must be provided.
+#cs_pin:
+#   The SPI enable pin for the sensor. This parameter must be provided
+#   if using SPI.
 #spi_speed: 5000000
 #   The SPI speed (in hz) to use when communicating with the chip.
 #   The default is 5000000.
@@ -2079,6 +2085,46 @@ cs_pin:
 #spi_software_miso_pin:
 #   See the "common SPI settings" section for a description of the
 #   above parameters.
+#i2c_address:
+#   Default is 25 (0x19). If SA0 is high, it would be 24 (0x18) instead.
+#i2c_mcu:
+#i2c_bus:
+#i2c_software_scl_pin:
+#i2c_software_sda_pin:
+#i2c_speed: 400000
+#   See the "common I2C settings" section for a description of the
+#   above parameters. The default "i2c_speed" is 400000.
+#axes_map: x, y, z
+#   See the "adxl345" section for information on this parameter.
+```
+
+### [lis3dh]
+
+Support for LIS3DH accelerometers.
+
+```
+[lis3dh]
+#cs_pin:
+#   The SPI enable pin for the sensor. This parameter must be provided
+#   if using SPI.
+#spi_speed: 5000000
+#   The SPI speed (in hz) to use when communicating with the chip.
+#   The default is 5000000.
+#spi_bus:
+#spi_software_sclk_pin:
+#spi_software_mosi_pin:
+#spi_software_miso_pin:
+#   See the "common SPI settings" section for a description of the
+#   above parameters.
+#i2c_address:
+#   Default is 25 (0x19). If SA0 is high, it would be 24 (0x18) instead.
+#i2c_mcu:
+#i2c_bus:
+#i2c_software_scl_pin:
+#i2c_software_sda_pin:
+#i2c_speed: 400000
+#   See the "common I2C settings" section for a description of the
+#   above parameters. The default "i2c_speed" is 400000.
 #axes_map: x, y, z
 #   See the "adxl345" section for information on this parameter.
 ```
@@ -3554,14 +3600,17 @@ control: curve
 #   fan would run with 0.5 at 55°)
 #cooling_hysteresis: 0.0
 #   define the temperature hysteresis for lowering the fan speed
-#   (temperature differences to the last measured value that are lower than
-#   the hysteresis will not cause lowering of the fan speed)
+#   (in simple terms this setting offsets the fan curve when cooling down
+#   by the specified amount of degrees celsius. For example, if the
+#   hysteresis is set to 5°C, the fan curve will be moved by -5°C. This
+#   setting can be used to reduce the effects of quickly changing
+#   temperatures around a target temperature which would cause the fan to
+#   speed up and slow down repeatedly.)
 #heating_hysteresis: 0.0
 #   same as cooling_hysteresis but for increasing the fan speed, it is
 #   recommended to be left at 0 for safety reasons
 #smooth_readings: 10
-#   the amount of readings a median should be taken of to determine the fan
-#   speed at each update interval, the default is 10
+#   This parameter is deprecated and should no longer be used.
 ```
 
 ### [fan_generic]
@@ -4386,17 +4435,17 @@ run_current:
 
 ### [tmc5160]
 
-Configure a TMC5160 stepper motor driver via SPI bus. To use this
-feature, define a config section with a "tmc5160" prefix followed by
-the name of the corresponding stepper config section (for example,
-"[tmc5160 stepper_x]").
+Configure a TMC5160 or TMC2160 stepper motor driver via SPI bus.
+To use this feature, define a config section with a "tmc5160" prefix
+followed by the name of the corresponding stepper config section
+(for example, "[tmc5160 stepper_x]").
 
 ```
 [tmc5160 stepper_x]
 cs_pin:
-#   The pin corresponding to the TMC5160 chip select line. This pin
-#   will be set to low at the start of SPI messages and raised to high
-#   after the message completes. This parameter must be provided.
+#   The pin corresponding to the TMC5160 or TMC2160 chip select line.
+#   This pin will be set to low at the start of SPI messages and raised
+#   to high after the message completes. This parameter must be provided.
 #spi_speed:
 #spi_bus:
 #spi_software_sclk_pin:
@@ -4504,8 +4553,8 @@ sense_resistor:
 #driver_BBMCLKS: 4
 #driver_BBMTIME: 0
 #driver_FILT_ISENSE: 0
-#   Set the given register during the configuration of the TMC5160
-#   chip. This may be used to set custom motor parameters. The
+#   Set the given register during the configuration of the TMC5160 or
+#   TMC2160 chip. This may be used to set custom motor parameters. The
 #   defaults for each parameter are next to the parameter name in the
 #   above list.
 #⚠️driver_s2vs_level: 6   # Short to Supply tolerance, from 4 to 15
@@ -4516,9 +4565,9 @@ sense_resistor:
 #diag0_pin:
 #diag1_pin:
 #   The micro-controller pin attached to one of the DIAG lines of the
-#   TMC5160 chip. Only a single diag pin should be specified. The pin
-#   is "active low" and is thus normally prefaced with "^!". Setting
-#   this creates a "tmc5160_stepper_x:virtual_endstop" virtual pin
+#   TMC5160 or TMC2160 chip. Only a single diag pin should be specified.
+#   The pin is "active low" and is thus normally prefaced with "^!".
+#   Setting this creates a "tmc5160_stepper_x:virtual_endstop" virtual pin
 #   which may be used as the stepper's endstop_pin. Doing this enables
 #   "sensorless homing". (Be sure to also set driver_SGT to an
 #   appropriate sensitivity value.) The default is to not enable
