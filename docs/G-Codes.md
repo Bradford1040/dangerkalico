@@ -155,9 +155,17 @@ The following commands are available when the
 section](Config_Reference.md#axis_twist_compensation) is enabled.
 
 #### AXIS_TWIST_COMPENSATION_CALIBRATE
-`AXIS_TWIST_COMPENSATION_CALIBRATE [SAMPLE_COUNT=<value>]`: Initiates the X
-twist calibration wizard. `SAMPLE_COUNT` specifies the number of points along
-the X axis to calibrate at and defaults to 3.
+`AXIS_TWIST_COMPENSATION_CALIBRATE [AXIS=<X|Y>] 
+[SAMPLE_COUNT=<value>] [<probe_parameter>=<value>]`:
+
+Calibrates axis twist compensation by specifying the target axis or
+enabling automatic calibration.
+
+- **SAMPLE_COUNT:** Number of points tested during the calibration.
+If not specified, it defaults to 3.
+
+- **AXIS:** Define the axis (`X` or `Y`) for which the twist compensation
+will be calibrated. If not specified, the axis defaults to `'X'`.
 
 ### [bed_mesh]
 
@@ -527,6 +535,43 @@ to become synchronized to the movement of an extruder specified by
 MOTION_QUEUE (as defined in an [extruder](Config_Reference.md#extruder)
 config section). If MOTION_QUEUE is an empty string then the stepper
 will be desynchronized from all extruder movement.
+
+### [mixing_extruder]
+
+The following commands are available when a
+[mixingextruder config section](Config_Reference.md#mixing_extruder) is
+enabled:
+
+#### SET_MIXING_EXTRUDER
+`SET_MIXING_EXTRUDER [FACTORS=<factor1>[:<factor2>[:<factor3>...]]]
+[ENABLE=[0|1]]`:
+This command activates the specified mixing extruder. Subsequent G1 commands
+use the mixing defined by the factors. FACTORS defines the mixing by providing
+a number of positive values. The number of values should correspond to the
+number of steppers defined in the configuration. The values are normalized
+internally to add up to 1 and the extrusion of the corresponding stepper is
+multiplied by that value. If ENABLED is omitted the current mixing state is
+not changed.
+If neither FACTORS nor ENABLE is provided the current mixing status is
+displayed.
+
+#### SET_MIXING_EXTRUDER_GRADIENT
+`SET_MIXING_EXTRUDER_GRADIENT [START_FACTORS=<s1>[,<s2>[,<s3>...]]
+END_FACTORS=<e1>[,<e2>[,<e3>...]] START_HEIGHT=<start> END_HEIGHT=<end>`]
+[ENABLE=[0|1|RESET]] [METHOD=[linear|spherical] [VECTOR=<x>,<y>,<z>]]`: When
+START_FACTORS, END_FACTORS, START_HEIGHT, END_HEIGHT is provided
+then an gradient configuration is added. The START_FACTORS define the mixing
+below and up to the START_HEIGHT. The END_FACTORS respectively the mixing
+from the END_HEIGHT onward. The mixing in between is linearly interpolated.
+When ENABLE is either 0 or 1 or METHOD is specified the mixing gradient is
+turned off or on and the gradient method (METHOD) which should be used is
+selected. All previously added gradients are used when enabled. The optional
+VECTOR configures a parameter depending on the METHOD: eg. for linear VECTOR
+defines the up direction and for spherical it defines the origin of the
+spheres.
+When ENABLE is RESET all configured gradients are removed and the gradient
+handling is disabled.
+When no parameter is provided the current mixing gradient status is displayed.
 
 ### [heated_fan]
 
