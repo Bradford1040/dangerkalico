@@ -19,8 +19,16 @@ def ffs(mask):
 
 class FieldHelper:
     def __init__(
-        self, all_fields, signed_fields=[], field_formatters={}, registers=None
+        self,
+        all_fields,
+        signed_fields=None,
+        field_formatters=None,
+        registers=None,
     ):
+        if field_formatters is None:
+            field_formatters = {}
+        if signed_fields is None:
+            signed_fields = []
         self.all_fields = all_fields
         self.signed_fields = {sf: 1 for sf in signed_fields}
         self.field_formatters = field_formatters
@@ -773,13 +781,14 @@ def TMCStealthchopHelper(config, mcu_tmc, tmc_freq):
 
 
 class BaseTMCCurrentHelper:
-    def __init__(self, config, mcu_tmc, max_current):
+    def __init__(self, config, mcu_tmc, max_current, has_sense_resistor=True):
         self.printer = config.get_printer()
         self.name = config.get_name().split()[-1]
         self.mcu_tmc = mcu_tmc
         self.fields = mcu_tmc.get_fields()
 
-        self.sense_resistor = config.getfloat("sense_resistor", above=0.0)
+        if has_sense_resistor:
+            self.sense_resistor = config.getfloat("sense_resistor", above=0.0)
 
         # config_{run|hold|home}_current
         # represents an initial value set via config file

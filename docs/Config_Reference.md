@@ -140,6 +140,11 @@ A collection of Kalico-specific system options
 #log_velocity_limit_changes: True
 #   If changes to velocity limits should be logged. If False, velocity limits will only
 #   be logged at rollover. Some slicers emit very frequent SET_VELOCITY_LIMIT commands
+#   The default is True
+#log_pressure_advance_changes: True
+#   If changes to pressure advance should be logged. If false, pressure advance data
+#   will only be logged at rollover.
+#   The default is True.
 #log_shutdown_info: True
 #   If we should log detailed crash info when an exception occurs
 #   Most of it is overly-verbose and fluff and we still get a stack trace
@@ -297,6 +302,9 @@ position_max:
 #homing_speed: 5.0
 #   Maximum velocity (in mm/s) of the stepper when homing. The default
 #   is 5mm/s.
+#homing_accel:
+#   Maximum accel (in mm/s) of the stepper when homing. The default
+#   is to use the max accel configured in the [printer]'s object.
 #homing_retract_dist: 5.0
 #   Distance to backoff (in mm) before homing a second time during
 #   homing. If `use_sensorless_homing` is false, this setting can be set
@@ -314,7 +322,8 @@ position_max:
 #   The default is equal to `homing_retract_dist`.
 #second_homing_speed:
 #   Velocity (in mm/s) of the stepper when performing the second home.
-#   The default is homing_speed/2.
+#   The default is homing_speed/2. If `use_sensorless_homing` is
+#   true, the default is homing_speed.
 #homing_positive_dir:
 #   If true, homing will cause the stepper to move in a positive
 #   direction (away from zero); if false, home towards zero. It is
@@ -1149,6 +1158,37 @@ max_temp:
 #   See the "extruder" section for a description of the above parameters.
 ```
 
+### [pid_profile]
+
+Pid Profiles specify a set of PID values that can be loaded at runtime.
+
+```
+[pid_profile <heater> <profile-name>]
+pid_version: 1
+# This defines the version it was saved with and is important for compatibility
+# checks, leave it at 1!
+pid_target:
+# For reference only, specifies the temperature the profile was calibrated for.
+# If you create a custom profile, either enter the temperature that profile is
+# intended to be used at or leave it blank.
+pid_tolerance: 
+# The tolerance that was used when autocalibrating the profile. If you define
+# a custom profile, leave it empty.
+control: <pid|pid_v>
+# Has to be either pid or pid_v.
+# This parameter is required.
+pid_kp: 
+# The P value for the PID Control.
+# This parameter is required.
+pid_ki:
+# The I value for the PID Control.
+# This parameter is required.
+pid_kd: 
+# The D value for the PID Control.
+# This parameter is required.
+```
+For more information, read up on docs/PID.md
+
 ## Bed level support
 
 ### [bed_mesh]
@@ -1439,14 +1479,16 @@ extended [G-Code command](G-Codes.md#z_tilt) becomes available.
 #   The height (in mm) that the head should be commanded to move to
 #   just prior to starting a probe operation. The default is 5.
 #min_horizontal_move_z: 1.0
-#   minimum value for horizontal move z
-#   (only used when adaptive_horizontal_move_z is True)
+#   The minimum value for horizontal move z to be used when
+#   adaptive_horizontal_move_z is enabled.
+#   The default is 1mm
 #adaptive_horizontal_move_z: False
-#   if we should adjust horizontal move z after the first adjustment round,
-#   based on error.
-#   when set to True, initial horizontal_move_z is the config value,
-#   subsequent iterations will set horizontal_move_z to
+#   Set it to True to automatically adjust horizontal move z after the first
+#   adjustment round, based on error.
+#   When enabled, the initial horizontal_move_z is the config value,
+#   and subsequent iterations will set horizontal_move_z to
 #   the ceil of error, or min_horizontal_move_z - whichever is greater.
+#   The default is False.
 #retries: 0
 #   Number of times to retry if the probed points aren't within
 #   tolerance.
@@ -1463,6 +1505,10 @@ extended [G-Code command](G-Codes.md#z_tilt) becomes available.
 #use_probe_xy_offsets: False
 #   If True, apply the `[probe]` XY offsets to the probed positions. The
 #   default is False.
+#enforce_lift_speed: False
+#   By default, the first Z movement to reach `horizontal_move_z` uses `speed`.
+#   Set `enforce_lift_speed` to True to enforce the `lift_speed`.
+#   The default is False.
 ```
 
 #### [z_tilt_ng]
@@ -1503,6 +1549,8 @@ commands become available, enhancing bed leveling accuracy and calibration effic
 #increasing_threshold: 0.0000001
 # See [z_tilt]
 #use_probe_xy_offsets: False
+# See [z_tilt]
+#enforce_lift_speed: False
 # See [z_tilt]
 #extra_points:
 #   A list in the same format as "points" above. This list contains
@@ -1573,14 +1621,16 @@ Where x is the 0, 0 point on the bed
 #   The height (in mm) that the head should be commanded to move to
 #   just prior to starting a probe operation. The default is 5.
 #min_horizontal_move_z: 1.0
-#   minimum value for horizontal move z
-#   (only used when adaptive_horizontal_move_z is True)
+#   The minimum value for horizontal move z to be used when
+#   adaptive_horizontal_move_z is enabled.
+#   The default is 1mm
 #adaptive_horizontal_move_z: False
-#   if we should adjust horizontal move z after the first adjustment round,
-#   based on error.
-#   when set to True, initial horizontal_move_z is the config value,
-#   subsequent iterations will set horizontal_move_z to
+#   Set it to True to automatically adjust horizontal move z after the first
+#   adjustment round, based on error.
+#   When enabled, the initial horizontal_move_z is the config value,
+#   and subsequent iterations will set horizontal_move_z to
 #   the ceil of error, or min_horizontal_move_z - whichever is greater.
+#   The default is False.
 #max_adjust: 4
 #   Safety limit if an adjustment greater than this value is requested
 #   quad_gantry_level will abort.
@@ -1596,6 +1646,10 @@ Where x is the 0, 0 point on the bed
 #use_probe_xy_offsets: False
 #   If True, apply the `[probe]` XY offsets to the probed positions. The
 #   default is False.
+#enforce_lift_speed: False
+#   By default, the first Z movement to reach `horizontal_move_z` uses `speed`.
+#   Set `enforce_lift_speed` to True to enforce the `lift_speed`.
+#   The default is False.
 ```
 
 ### [skew_correction]
@@ -4429,6 +4483,13 @@ run_current:
 #   velocity" threshold (THIGH) to. This is typically used to disable
 #   the "CoolStep" feature at high speeds. The default is to not set a
 #   TMC "high velocity" threshold.
+#current_range:
+#   The current_range bit value for the driver. Valid values are 0-3.
+#   The defaul is to auto-calculate to match the requested run_current.
+#   For further information consult the tmc2240 datasheet and tuning table.
+#driver_CS: 31
+#   The current_scaler value for the driver. The default is 31.
+#   For further information consult the tmc2240 datasheet and tuning table.
 #driver_MSLUT0: 2863314260
 #driver_MSLUT1: 1251300522
 #driver_MSLUT2: 608774441

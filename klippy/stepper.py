@@ -441,9 +441,18 @@ class PrinterRail:
                 " position_min and position_max" % config.get_name()
             )
         # Homing mechanics
+        self.use_sensorless_homing = config.getboolean(
+            "use_sensorless_homing", endstop_is_virtual
+        )
+
         self.homing_speed = config.getfloat("homing_speed", 5.0, above=0.0)
+
+        default_second_homing_speed = self.homing_speed / 2.0
+        if self.use_sensorless_homing:
+            default_second_homing_speed = self.homing_speed
+
         self.second_homing_speed = config.getfloat(
-            "second_homing_speed", self.homing_speed / 2.0, above=0.0
+            "second_homing_speed", default_second_homing_speed, above=0.0
         )
         self.homing_retract_speed = config.getfloat(
             "homing_retract_speed", self.homing_speed, above=0.0
@@ -454,12 +463,12 @@ class PrinterRail:
         self.homing_positive_dir = config.getboolean(
             "homing_positive_dir", None
         )
-        self.use_sensorless_homing = config.getboolean(
-            "use_sensorless_homing", endstop_is_virtual
-        )
+
         self.min_home_dist = config.getfloat(
             "min_home_dist", self.homing_retract_dist, minval=0.0
         )
+
+        self.homing_accel = config.getfloat("homing_accel", None, above=0.0)
 
         if self.homing_positive_dir is None:
             axis_len = self.position_max - self.position_min
@@ -507,6 +516,7 @@ class PrinterRail:
                 "second_homing_speed",
                 "use_sensorless_homing",
                 "min_home_dist",
+                "accel",
             ],
         )(
             self.homing_speed,
@@ -517,6 +527,7 @@ class PrinterRail:
             self.second_homing_speed,
             self.use_sensorless_homing,
             self.min_home_dist,
+            self.homing_accel,
         )
         return homing_info
 
