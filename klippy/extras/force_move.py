@@ -4,7 +4,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import math, logging
-import chelper
+from klippy import chelper
 
 BUZZ_DISTANCE = 1.0
 BUZZ_VELOCITY = BUZZ_DISTANCE / 0.250
@@ -49,15 +49,17 @@ class ForceMove:
             self.cmd_STEPPER_BUZZ,
             desc=self.cmd_STEPPER_BUZZ_help,
         )
-        if config.getboolean("enable_force_move", True):
-            gcode.register_command(
-                "FORCE_MOVE", self.cmd_FORCE_MOVE, desc=self.cmd_FORCE_MOVE_help
-            )
-            gcode.register_command(
-                "SET_KINEMATIC_POSITION",
-                self.cmd_SET_KINEMATIC_POSITION,
-                desc=self.cmd_SET_KINEMATIC_POSITION_help,
-            )
+        if not config.getboolean("enable_force_move", True):
+            return
+
+        gcode.register_command(
+            "FORCE_MOVE", self.cmd_FORCE_MOVE, desc=self.cmd_FORCE_MOVE_help
+        )
+        gcode.register_command(
+            "SET_KINEMATIC_POSITION",
+            self.cmd_SET_KINEMATIC_POSITION,
+            desc=self.cmd_SET_KINEMATIC_POSITION_help,
+        )
 
     def register_stepper(self, config, mcu_stepper):
         self.steppers[mcu_stepper.get_name()] = mcu_stepper
@@ -172,8 +174,18 @@ class ForceMove:
         x = gcmd.get_float("X", curpos[0])
         y = gcmd.get_float("Y", curpos[1])
         z = gcmd.get_float("Z", curpos[2])
-        logging.info("SET_KINEMATIC_POSITION pos=%.3f,%.3f,%.3f", x, y, z)
+        clear = gcmd.get("CLEAR", "").upper()
+        axes = ["X", "Y", "Z"]
+        clear_axes = [axes.index(a) for a in axes if a in clear]
+        logging.info(
+            "SET_KINEMATIC_POSITION pos=%.3f,%.3f,%.3f clear=%s",
+            x,
+            y,
+            z,
+            ",".join((axes[i] for i in clear_axes)),
+        )
         toolhead.set_position([x, y, z, curpos[3]], homing_axes=(0, 1, 2))
+        toolhead.get_kinematics().clear_homing_state(clear_axes)
 
 
 def load_config(config):

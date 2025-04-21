@@ -6,14 +6,13 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 from __future__ import print_function
-import importlib, optparse, os, sys
+import optparse, sys, pathlib
 from textwrap import wrap
 import numpy as np, matplotlib
 
-sys.path.append(
-    os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "klippy")
-)
-shaper_calibrate = importlib.import_module(".shaper_calibrate", "extras")
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
+
+from klippy.extras import shaper_calibrate
 
 MAX_TITLE_LENGTH = 65
 
@@ -23,7 +22,7 @@ def parse_log(logname):
         for header in f:
             if not header.startswith("#"):
                 break
-        if not header.startswith("freq,psd_x,psd_y,psd_z,psd_xyz"):
+        if not header.startswith("freq,psd_x,psd_y,psd_z,psd_xyz,accel_per_hz"):
             # Raw accelerometer data
             return np.loadtxt(logname, comments="#", delimiter=",")
     # Parse power spectral density data
@@ -41,6 +40,20 @@ def parse_log(logname):
     if "mzv" not in header:
         calibration_data.normalize_to_frequencies()
     return calibration_data
+
+
+def parse_accel_per_hz(logname):
+    with open(logname) as f:
+        for header in f:
+            if not header.startswith("#"):
+                break
+        if not header.startswith("freq,psd_x,psd_y,psd_z,psd_xyz,accel_per_hz"):
+            return None  # TODO
+
+    data = np.loadtxt(
+        logname, skiprows=1, comments="#", delimiter=",", max_rows=2
+    )
+    return data[0][5].item()
 
 
 ######################################################################
@@ -102,7 +115,12 @@ def calibrate_shaper(
 
 
 def plot_freq_response(
-    lognames, calibration_data, shapers, selected_shaper, max_freq
+    lognames,
+    calibration_data,
+    shapers,
+    selected_shaper,
+    max_freq,
+    accels_per_hz,
 ):
     freqs = calibration_data.freq_bins
     psd = calibration_data.psd_sum[freqs <= max_freq]
@@ -152,6 +170,13 @@ def plot_freq_response(
     # A hack to add a human-readable shaper recommendation to legend
     ax2.plot(
         [], [], " ", label="Recommended shaper: %s" % (selected_shaper.upper())
+    )
+
+    ax2.plot(
+        [],
+        [],
+        " ",
+        label="accels_per_hz: %s" % (", ".join(str(e) for e in accels_per_hz)),
     )
 
     ax.legend(loc="upper left", prop=fontP)
@@ -309,6 +334,7 @@ def main():
 
     # Parse data
     datas = [parse_log(fn) for fn in args]
+    accels_per_hz = [parse_accel_per_hz(fn) for fn in args]
 
     # Calibrate shaper and generate outputs
     selected_shaper, shapers, calibration_data = calibrate_shaper(
@@ -330,7 +356,12 @@ def main():
         setup_matplotlib(options.output is not None)
 
         fig = plot_freq_response(
-            args, calibration_data, shapers, selected_shaper, max_freq
+            args,
+            calibration_data,
+            shapers,
+            selected_shaper,
+            max_freq,
+            accels_per_hz,
         )
 
         # Show graph

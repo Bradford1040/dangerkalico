@@ -13,6 +13,7 @@ class Fan:
         self.printer = config.get_printer()
         self.last_fan_value = 0.0
         self.last_fan_time = 0.0
+        self.last_pwm_value = 0.0
         # Read config
         self.kick_start_time = config.getfloat(
             "kick_start_time", 0.1, minval=0.0
@@ -22,6 +23,11 @@ class Fan:
         )
         self.off_below = config.getfloat(
             "off_below", default=None, minval=0.0, maxval=1.0
+        )
+        if self.off_below is not None:
+            config.deprecate("off_below")
+        self.initial_speed = config.getfloat(
+            "initial_speed", default=None, minval=0.0, maxval=1.0
         )
 
         # handles switchover of variable
@@ -58,9 +64,15 @@ class Fan:
         self.mcu_fan = ppins.setup_pin("pwm", config.get("pin"))
         self.mcu_fan.setup_max_duration(0.0)
         self.mcu_fan.setup_cycle_time(cycle_time, hardware_pwm)
-        shutdown_power = max(0.0, min(self.max_power, shutdown_speed))
-        self.mcu_fan.setup_start_value(0.0, shutdown_power)
 
+        if hardware_pwm:
+            shutdown_power = max(0.0, min(self.max_power, shutdown_speed))
+        else:
+            # the config allows shutdown_power to be > 0 and < 1, but it is validated
+            # in MCU_pwm._build_config().
+            shutdown_power = max(0.0, shutdown_speed)
+
+        self.mcu_fan.setup_start_value(0.0, shutdown_power)
         self.enable_pin = None
         enable_pin = config.get("enable_pin", None)
         if enable_pin is not None:
@@ -74,6 +86,7 @@ class Fan:
         self.printer.register_event_handler(
             "gcode:request_restart", self._handle_request_restart
         )
+        self.printer.register_event_handler("klippy:ready", self._handle_ready)
 
     def get_mcu(self):
         return self.mcu_fan.get_mcu()
@@ -83,10 +96,10 @@ class Fan:
             return
         if value > 0:
             # Scale value between min_power and max_power
+            value = min(value, 1.0)
             pwm_value = (
                 value * (self.max_power - self.min_power) + self.min_power
             )
-            pwm_value = max(self.min_power, min(self.max_power, pwm_value))
         else:
             pwm_value = 0
         print_time = max(self.last_fan_time + FAN_MIN_TIME, print_time)
@@ -105,6 +118,7 @@ class Fan:
             self.mcu_fan.set_pwm(print_time, self.max_power)
             print_time += self.kick_start_time
         self.mcu_fan.set_pwm(print_time, pwm_value)
+        self.last_pwm_value = pwm_value
         self.last_fan_time = print_time
         self.last_fan_value = value
 
@@ -117,10 +131,16 @@ class Fan:
     def _handle_request_restart(self, print_time):
         self.set_speed(print_time, 0.0)
 
+    def _handle_ready(self):
+        if self.initial_speed:
+            self.set_speed_from_command(self.initial_speed)
+
     def get_status(self, eventtime):
         tachometer_status = self.tachometer.get_status(eventtime)
         return {
-            "speed": self.last_fan_value,
+            "power": self.last_pwm_value,
+            "value": self.last_fan_value,
+            "speed": self.last_fan_value * self.max_power,
             "rpm": tachometer_status["rpm"],
         }
 

@@ -201,9 +201,6 @@ class TMC2130CurrentHelper(tmc.BaseTMCCurrentHelper):
     def __init__(self, config, mcu_tmc):
         super().__init__(config, mcu_tmc, MAX_CURRENT)
 
-        self.sense_resistor = config.getfloat(
-            "sense_resistor", 0.110, above=0.0
-        )
         vsense, irun, ihold = self._calc_current(
             self.req_run_current, self.req_hold_current
         )
@@ -368,6 +365,7 @@ class MCU_TMC_SPI:
         self.name_to_reg = name_to_reg
         self.fields = fields
         self.tmc_frequency = tmc_frequency
+        self.mcu = self.tmc_spi.spi.get_mcu()
 
     def get_fields(self):
         return self.fields
