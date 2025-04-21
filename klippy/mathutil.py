@@ -4,12 +4,20 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import math, logging, multiprocessing, traceback
-import queuelogger
+from . import queuelogger
+
+
+def safe_float(v: str) -> float:
+    f = float(v)
+    if math.isnan(f) or math.isinf(f):
+        raise ValueError(f"{v} is not a valid float")
+    return f
 
 
 ######################################################################
 # Coordinate descent
 ######################################################################
+
 
 # Helper code that implements coordinate descent
 def coordinate_descent(adj_params, params, error_func):
@@ -90,6 +98,7 @@ def background_coordinate_descent(printer, adj_params, params, error_func):
 ######################################################################
 # Trilateration
 ######################################################################
+
 
 # Trilateration finds the intersection of three spheres.  See the
 # wikipedia article for the details of the algorithm.

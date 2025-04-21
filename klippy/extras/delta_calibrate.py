@@ -5,13 +5,14 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
 import math
-import mathutil
+from klippy import mathutil
 from . import probe
 
 # A "stable position" is a 3-tuple containing the number of steps
 # taken since hitting the endstop on each delta tower.  Delta
 # calibration uses this coordinate system because it allows a position
 # to be described independent of the software parameters.
+
 
 # Load a stable position from a config entry
 def load_config_stable(config, option):
@@ -30,6 +31,7 @@ MeasureRidgeRadius = 5.0 - 0.5
 
 # How much to prefer a distance measurement over a height measurement
 MEASURE_WEIGHT = 0.5
+
 
 # Convert distance measurements made on the calibration object to
 # 3-tuples of (actual_distance, stable_position1, stable_position2)
@@ -214,6 +216,7 @@ class DeltaCalibrate:
         z_weight = 1.0
         if distances:
             z_weight = len(distances) / (MEASURE_WEIGHT * len(probe_positions))
+
         # Perform coordinate descent
         def delta_errorfunc(params):
             try:

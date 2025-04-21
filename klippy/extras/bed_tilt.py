@@ -4,7 +4,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
-import mathutil
+from klippy import mathutil
 from . import probe
 
 
@@ -90,6 +90,7 @@ class BedTiltCalibrate:
             "z_adjust": z_offset,
         }
         logging.info("Initial bed_tilt parameters: %s", params)
+
         # Perform coordinate descent
         def adjusted_height(pos, params):
             x, y, z = pos

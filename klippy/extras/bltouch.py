@@ -5,15 +5,21 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
 from . import probe
+from .danger_options import get_danger_options
 
 SIGNAL_PERIOD = 0.020
 MIN_CMD_TIME = 5 * SIGNAL_PERIOD
 
 TEST_TIME = 5 * 60.0
 RETRY_RESET_TIME = 1.0
-ENDSTOP_REST_TIME = 0.001
-ENDSTOP_SAMPLE_TIME = 0.000015
-ENDSTOP_SAMPLE_COUNT = 4
+
+
+# ENDSTOP_REST_TIME = 0.001
+# ENDSTOP_SAMPLE_TIME = 0.000015
+# ENDSTOP_SAMPLE_COUNT = 4
+ENDSTOP_REST_TIME = get_danger_options().homing_start_delay
+ENDSTOP_SAMPLE_TIME = get_danger_options().endstop_sample_time
+ENDSTOP_SAMPLE_COUNT = get_danger_options().endstop_sample_count
 
 Commands = {
     "pin_down": 0.000650,
@@ -58,7 +64,7 @@ class BLTouchEndstopWrapper:
         mcu = pin_params["chip"]
         self.mcu_endstop = mcu.setup_pin("endstop", pin_params)
         # output mode
-        omodes = {"5V": "5V", "OD": "OD", None: None}
+        omodes = ["5V", "OD", None]
         self.output_mode = config.getchoice("set_output_mode", omodes, None)
         # Setup for sensor test
         self.next_test_time = 0.0
@@ -143,7 +149,12 @@ class BLTouchEndstopWrapper:
             ENDSTOP_REST_TIME,
             triggered=triggered,
         )
-        trigger_time = self.mcu_endstop.home_wait(self.action_end_time + 0.100)
+        try:
+            trigger_time = self.mcu_endstop.home_wait(
+                self.action_end_time + 0.100
+            )
+        except self.printer.command_error as e:
+            return False
         return trigger_time > 0.0
 
     def raise_probe(self):

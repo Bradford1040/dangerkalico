@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # Module supporting uploads Klipper firmware to an SD Card via SPI and SDIO
 #
 # Copyright (C) 2021 Eric Callahan <arksine.code@gmail.com>
@@ -17,10 +17,10 @@ import traceback
 import json
 import board_defs
 import fatfs_lib
-import reactor
-import serialhdl
-import clocksync
-import mcu
+import pathlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent.parent))
+from klippy import reactor, serialhdl, clocksync, mcu
 
 ###########################################################
 #
@@ -79,26 +79,19 @@ def translate_serial_to_tty(device):
 
 
 def check_need_convert(board_name, config):
-    if board_name.lower().startswith("mks-robin-e3"):
-        # we need to convert this file
-        robin_util = os.path.join(
-            fatfs_lib.KLIPPER_DIR, "scripts/update_mks_robin.py"
-        )
-        klipper_bin = config["klipper_bin_path"]
-        robin_bin = os.path.join(
-            os.path.dirname(klipper_bin),
-            os.path.basename(config["firmware_path"]),
-        )
-        cmd = "%s %s %s %s" % (
-            sys.executable,
-            robin_util,
-            klipper_bin,
-            robin_bin,
-        )
-        output("Converting Klipper binary to MKS Robin format...")
-        os.system(cmd)
-        output_line("Done")
-        config["klipper_bin_path"] = robin_bin
+    conv_script = config.get("conversion_script")
+    if conv_script is None:
+        return
+    conv_util = os.path.join(fatfs_lib.KLIPPER_DIR, conv_script)
+    klipper_bin = config["klipper_bin_path"]
+    dest_bin = os.path.join(
+        os.path.dirname(klipper_bin), os.path.basename(config["firmware_path"])
+    )
+    cmd = "%s %s %s %s" % (sys.executable, conv_util, klipper_bin, dest_bin)
+    output("Converting Klipper binary to custom format...")
+    os.system(cmd)
+    output_line("Done")
+    config["klipper_bin_path"] = dest_bin
 
 
 ###########################################################
@@ -135,7 +128,7 @@ SDIO_CFG_CMD = "config_sdio oid=%d blocksize=%u"
 SDIO_BUS_CMD = "sdio_set_bus oid=%d sdio_bus=%s"
 SDIO_SEND_CMD = "sdio_send_command oid=%c cmd=%c argument=%u wait=%c"
 SDIO_SEND_CMD_RESPONSE = (
-    "sdio_send_command_response oid=%c error=%c " "response=%*s"
+    "sdio_send_command_response oid=%c error=%c response=%*s"
 )
 SDIO_READ_DATA = "sdio_read_data oid=%c cmd=%c argument=%u"
 SDIO_READ_DATA_RESPONSE = "sdio_read_data_response oid=%c error=%c read=%u"
@@ -242,6 +235,7 @@ STA_NO_INIT = 1 << 0
 STA_NO_DISK = 1 << 1
 STA_WRITE_PROTECT = 1 << 2
 SECTOR_SIZE = 512
+
 
 # FAT16/32 File System Support
 class FatFS:
@@ -624,7 +618,7 @@ class SDCardSPI:
             resp = self._send_command_with_response(
                 "SEND_IF_COND", (1 << 8) | check_pattern
             )
-            resp = resp.strip(b"\xFF")
+            resp = resp.strip(b"\xff")
             if resp and resp[0] & (1 << 2):
                 # CMD8 is illegal, this is a version 1.0 card
                 self.sd_version = 1
@@ -658,7 +652,7 @@ class SDCardSPI:
                     )
             # Read OCR Register (CMD58)
             resp = self._send_command_with_response("READ_OCR", 0)
-            resp = resp.strip(b"\xFF")
+            resp = resp.strip(b"\xff")
             # If 'READ_OCR' is illegal then this is likely MMC.
             # At this time MMC is not supported
             if len(resp) == 5:
@@ -666,7 +660,7 @@ class SDCardSPI:
                     # Check acceptable volatage range for V1 cards
                     if resp[2] != 0xFF:
                         raise OSError(
-                            "flash_sdcard: card does not support" " 3.3v range"
+                            "flash_sdcard: card does not support 3.3v range"
                         )
                 elif self.sd_version == 2 and resp[0] == 0:
                     # Determine if this is a high capacity sdcard
@@ -726,7 +720,7 @@ class SDCardSPI:
             resp, rt = func(cmd, args, get_rt=True)
             # logging.info("flash_sdcard: Check cmd %s, response: %s"
             #              % (cmd, repr(resp)))
-            resp = resp.strip(b"\xFF")
+            resp = resp.strip(b"\xff")
             if resp and expected == resp[0]:
                 return True
             tries -= 1
@@ -874,9 +868,7 @@ class SDCardSPI:
             )
             valid_response = False
         if not self._find_sd_token(0xFE):
-            logging.info(
-                "flash_sdcard: read error, unable to find " "start token"
-            )
+            logging.info("flash_sdcard: read error, unable to find start token")
             valid_response = False
         if not valid_response:
             # In the event of an invalid response we will still
@@ -918,7 +910,7 @@ class SDCardSPI:
                 )
             if not self.initialized:
                 raise OSError(
-                    "flash_sdcard: write error, SD Card not" " initialized"
+                    "flash_sdcard: write error, SD Card not initialized"
                 )
             outbuf = bytearray(data)
             if len(outbuf) > SECTOR_SIZE:
@@ -949,11 +941,11 @@ class SDCardSPI:
             # wait until the card leaves the busy state
             if not self._find_sd_token(0xFF, tries=128):
                 err_msgs.append(
-                    "flash_sdcard: could not leave busy" " state after write"
+                    "flash_sdcard: could not leave busy state after write"
                 )
             else:
                 status = self._send_command_with_response("SEND_STATUS", 0)
-                status = status.strip(b"\xFF")
+                status = status.strip(b"\xff")
                 if len(status) == 2:
                     if status[1] != 0:
                         err_msgs.append(
@@ -1009,7 +1001,7 @@ class SDCardSDIO:
             resp = self._send_command_with_response(
                 "SEND_IF_COND", (1 << 8) | check_pattern
             )
-            resp = resp.strip(b"\xFF")
+            resp = resp.strip(b"\xff")
             if len(resp) != 4:
                 # CMD8 is illegal, this is a version 1.0 card
                 self.sd_version = 1
@@ -1021,7 +1013,6 @@ class SDCardSDIO:
                         "compatible voltage range"
                     )
             if self.sd_version == 2:
-
                 # Init card and come out of idle (ACMD41)
                 # Version 2 Cards may init before checking the OCR
                 # Allow vor LVDS card with 1.8v, too.
@@ -1042,7 +1033,7 @@ class SDCardSDIO:
                     # Check acceptable volatage range for V1 cards
                     if resp[1] != 0xFF:
                         raise OSError(
-                            "flash_sdcard: card does not support" " 3.3v range"
+                            "flash_sdcard: card does not support 3.3v range"
                         )
                 elif self.sd_version == 2:
                     # Determine if this is a high capacity sdcard
@@ -1069,7 +1060,7 @@ class SDCardSDIO:
             # Check if bits 15:13 have some error set
             if (resp[-2] & 0xE0) != 0:
                 raise OSError(
-                    "flash_sdcard: set card's " "relative address failed"
+                    "flash_sdcard: set card's relative address failed"
                 )
             self.rca = resp[0] << 8 | resp[1]
 
@@ -1292,7 +1283,7 @@ class SDCardSDIO:
                 )
             if not self.initialized:
                 raise OSError(
-                    "flash_sdcard: write error, SD Card not" " initialized"
+                    "flash_sdcard: write error, SD Card not initialized"
                 )
             outbuf = bytearray(data)
             if len(outbuf) > SECTOR_SIZE:
@@ -1330,7 +1321,7 @@ class SDCardSDIO:
                 raise OSError(
                     "flash_sdcard: Write error."
                     " Card is not in transfer state: 0x%02X"
-                    % (((status[3] >> 1) & 0x0F))
+                    % ((status[3] >> 1) & 0x0F)
                 )
 
 

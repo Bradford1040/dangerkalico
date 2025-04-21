@@ -11,7 +11,7 @@ To use a dockable probe the following options are required at a minimum.
 Some users may be transitioning from a macro based set of commands and
 many of the options for the `[probe]` config section are the same.
 The `[dockable_probe]` module is first and foremost a `[probe]`
-but with additional functionality. Any options that can be specified
+but with additional functionality. Most of the options that can be specified
 for `[probe]` are valid for `[dockable_probe]`.
 
 ```
@@ -93,8 +93,20 @@ detach_position:
 
 - `restore_toolhead: False|True`\
   _Default Value: True_\
-  While True, the position of the toolhead is restored to the position prior to 
-  the attach/detach movements.
+  The position of the toolhead is restored to the position prior to 
+  the attach/detach movements. See table below.
+
+| Command                 | Module            | restore_th=True | restore_th=False | notes                          |
+| ----------------------- | ----------------- | --------------- | ---------------- | ------------------------------ |
+| ATTACH_PROBE            | dockable_probe.py | True            | False            |                                |
+| Z_TILT_ADJUST           | probe.py          | True            | False            |                                |
+| QUAD_GANTRY_LEVEL       | probe.py          | True            | False            |                                |
+| PROBE                   | probe.py          | True            | True             |                                |
+| PROBE_ACCURACY          | probe.py          | True            | True             |                                |
+| AXIS_TWIST_COMPENSATION | probe.py          | True            | True             |                                |
+| CALIBRATE_Z             | z_calibration.py  | True            | False            |                                |
+| G28 Z                   | probe.py          | True            | True             | **only for z_virtual_endstop** |
+
 
 ## Position Examples
 
@@ -187,9 +199,48 @@ z_hop: 15
 
 ### Homing
 
-No configuration specific to the dockable probe is required when using
-the probe as a virtual endstop, though it's recommended to consider
-using `[safe_z_home]` or `[homing_override]`.
+No configuration specific to the dockable probe is required. However, when
+using the probe as a virtual endstop, it's required to
+use `[safe_z_home]` or `[homing_override]`.
+
+#### Examples for probe as virtual endstop
+- #### Homing override
+```elixir
+[homing_override]
+axes: xyz
+set_position_z: 0
+gcode:
+  
+  G90
+  {% set home_all = 'X' not in params and 'Y' not in params and 'Z' not in params %}
+
+  {% if home_all or 'X' in params %}
+    G0 Z10
+    G28 X
+  {% endif %}
+
+  {% if home_all or 'Y' in params %}
+    G0 Z10
+    G28 Y
+  {% endif %}
+  
+  {% if home_all or 'Z' in params %}
+    ATTACH_PROBE
+    MOVE_AVOIDING_DOCK X=150 Y=150 SPEED=300
+    # Probe is already attached, no need to make a return trip to the dock.
+    G28 Z  
+  {% endif %}
+```
+
+- #### safe_z_home
+While homing Z with safe_z_home, the toolhead will move to home_xy_position then will 
+move  to the dock and return back to home_xy_position.
+```elixir
+[safe_z_home]
+home_xy_position: 150,150
+z_hop: 10
+```
+
 
 ### Probe Attachment Verification
 
@@ -257,6 +308,33 @@ methods can be used to verify probe attachment states.
   Movement speed when approaching the probe during `MOVE_TO_APPROACH_PROBE`
   and returning the toolhead to its previous position after attach/detach.
 
+## Safe dock area
+
+A safe dock area is defined to avoid collision with the dock during probe attachment/detachment moves. see `MOVE_AVOIDING_DOCK`.
+
+- `safe_dock_distance:`\
+  _Default Value: minimum distance to the dock of approach\_position or insert\_position_ \
+  This indroduce on the first version of the plugin. It defines a security area
+  centered on dock position during ATTACH/DETACH_PROBE operations.
+  Approach, insert and detach position shoulb outside this area.  
+
+- `safe_position: 250, 295, 0`
+  _Default Value: approach_position_
+  A safe position to ensure MOVE_AVOIDING_DOCK travel does not move out of range
+
+### MOVE_AVOIDING_DOCK description
+![safe dock area](./img/move_avoiding_dock.jpg)
+The strategy described below is used by the attach and detach commands to avoid dock collision.
+
+> [!NOTE]  
+> The default `safe_position` is `approach_position`. To help determine the avoiding path and prevent moving out of range, it should be configured as a point next to the safe area, farthest from the "move out of range" zone. 
+
+Several cases are illustrated:
+1. Moving from `A` to `B`: The requested trajectory passes over the safe dock area, so the calculated trajectory passes around the dock area, close to the safe position.
+2. Moving from `A'` to `B`: The toolhead leaves the safe dock area by the shortest path and reaches `B` as before.
+3. Moving from `A` to `B'`: Since `B'` is in the safe area, the toolhead stops at `B"`.
+4. Moving from `A'` to `B'`: The toolhead leaves the safe dock area by the shortest path.
+
 ## Dockable Probe Gcodes
 
 ### General
@@ -309,6 +387,11 @@ This command will move the toolhead to the `insert_position`.
 This command will move the toolhead to the `detach_position`. It can be
 overridden to move a servo if that's required for detaching your probe.
 
+`MOVE_AVOIDING_DOCK [X=<value>] [Y=<value>] [SPEED=<value>]`
+
+This command will move the toolhead to the absolute coordinates, avoiding the 
+safe dock area.
+
 ### Status
 
 `QUERY_DOCKABLE_PROBE`
@@ -349,6 +432,8 @@ SET_DOCKABLE_PROBE AUTO_ATTACH_DETACH=1  # Make sure the probe is attached in fu
 
     - The toolhead position is compared to the dock position.
 
+    - The pre_attach_gcode is executed
+
     - If the toolhead is outside of the minimum safe radius, the toolhead is
       commanded to move to the approach vector, that is, a position that is
       the minimum safe distance from the dock in line with the dock angle.
@@ -359,11 +444,13 @@ SET_DOCKABLE_PROBE AUTO_ATTACH_DETACH=1  # Make sure the probe is attached in fu
       (MOVE_TO_APPROACH_PROBE)
 
     - The tool is moved along the approach vector to the dock coordinates.
-    (MOVE_TO_DOCK_PROBE)
+      (MOVE_TO_DOCK_PROBE)
 
     - The toolhead is commanded to move out of the dock back to the minimum
       safe distance in the reverse direction along the dock angle.
       (MOVE_TO_EXTRACT_PROBE)
+
+    - The post_attach_gcode is executed
 
     - If configured, the probe is checked to see if it is attached.
 
@@ -382,6 +469,8 @@ SET_DOCKABLE_PROBE AUTO_ATTACH_DETACH=1  # Make sure the probe is attached in fu
 
     - The toolhead position is compared to the dock position.
 
+    - The pre_detach_gcode is executed
+
     - If the toolhead is outside of the minimum safe radius, the toolhead is
       commanded to move to the approach vector, that is, a position that is
       the minimum safe distance from the dock in line with the dock angle.
@@ -396,6 +485,8 @@ SET_DOCKABLE_PROBE AUTO_ATTACH_DETACH=1  # Make sure the probe is attached in fu
 
     - The toolhead is commanded to move along the detach vector if supplied or a
       calculated direction based on axis parameters. (MOVE_TO_DETACH_PROBE)
+
+    - The post_detach_gcode is executed
 
     - If configured, the probe is checked to see if it detached.
 

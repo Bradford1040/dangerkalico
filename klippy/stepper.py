@@ -5,7 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import collections
 import math
-import chelper
+from . import chelper
 
 
 class error(Exception):
@@ -193,8 +193,10 @@ class MCU_stepper:
         ffi_main, ffi_lib = chelper.get_ffi()
         return ffi_lib.itersolve_get_commanded_pos(self._stepper_kinematics)
 
-    def get_mcu_position(self):
-        mcu_pos_dist = self.get_commanded_position() + self._mcu_position_offset
+    def get_mcu_position(self, cmd_pos=None):
+        if cmd_pos is None:
+            cmd_pos = self.get_commanded_position()
+        mcu_pos_dist = cmd_pos + self._mcu_position_offset
         mcu_pos = mcu_pos_dist / self._step_dist
         if mcu_pos >= 0.0:
             return int(mcu_pos + 0.5)
@@ -248,7 +250,7 @@ class MCU_stepper:
         self._query_mcu_position()
 
     def _query_mcu_position(self):
-        if self._mcu.is_fileoutput():
+        if self._mcu.is_fileoutput() or self._mcu.non_critical_disconnected:
             return
         params = self._get_position_cmd.send([self._oid])
         last_pos = params["pos"]
@@ -352,6 +354,7 @@ def parse_gear_ratio(config, note_valid):
 
 # Obtain "step distance" information from a config section
 def parse_step_distance(config, units_in_radians=None, note_valid=False):
+    # Check rotation_distance and gear_ratio
     if units_in_radians is None:
         # Caller doesn't know if units are in radians - infer it
         rd = config.get("rotation_distance", None, note_valid=False)
@@ -364,7 +367,7 @@ def parse_step_distance(config, units_in_radians=None, note_valid=False):
         rotation_dist = config.getfloat(
             "rotation_distance", above=0.0, note_valid=note_valid
         )
-    # Newer config format with rotation_distance
+    # Check microsteps and full_steps_per_rotation
     microsteps = config.getint("microsteps", minval=1, note_valid=note_valid)
     full_steps = config.getint(
         "full_steps_per_rotation", 200, minval=1, note_valid=note_valid
@@ -438,9 +441,18 @@ class PrinterRail:
                 " position_min and position_max" % config.get_name()
             )
         # Homing mechanics
+        self.use_sensorless_homing = config.getboolean(
+            "use_sensorless_homing", endstop_is_virtual
+        )
+
         self.homing_speed = config.getfloat("homing_speed", 5.0, above=0.0)
+
+        default_second_homing_speed = self.homing_speed / 2.0
+        if self.use_sensorless_homing:
+            default_second_homing_speed = self.homing_speed
+
         self.second_homing_speed = config.getfloat(
-            "second_homing_speed", self.homing_speed / 2.0, above=0.0
+            "second_homing_speed", default_second_homing_speed, above=0.0
         )
         self.homing_retract_speed = config.getfloat(
             "homing_retract_speed", self.homing_speed, above=0.0
@@ -451,12 +463,12 @@ class PrinterRail:
         self.homing_positive_dir = config.getboolean(
             "homing_positive_dir", None
         )
-        self.use_sensorless_homing = config.getboolean(
-            "use_sensorless_homing", endstop_is_virtual
-        )
+
         self.min_home_dist = config.getfloat(
             "min_home_dist", self.homing_retract_dist, minval=0.0
         )
+
+        self.homing_accel = config.getfloat("homing_accel", None, above=0.0)
 
         if self.homing_positive_dir is None:
             axis_len = self.position_max - self.position_min
@@ -504,6 +516,7 @@ class PrinterRail:
                 "second_homing_speed",
                 "use_sensorless_homing",
                 "min_home_dist",
+                "accel",
             ],
         )(
             self.homing_speed,
@@ -514,6 +527,7 @@ class PrinterRail:
             self.second_homing_speed,
             self.use_sensorless_homing,
             self.min_home_dist,
+            self.homing_accel,
         )
         return homing_info
 
@@ -556,7 +570,7 @@ class PrinterRail:
             changed_pullup = pin_params["pullup"] != endstop["pullup"]
             if changed_invert or changed_pullup:
                 raise error(
-                    "Pinter rail %s shared endstop pin %s "
+                    "Printer rail %s shared endstop pin %s "
                     "must specify the same pullup/invert settings"
                     % (self.get_name(), pin_name)
                 )
